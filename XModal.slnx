@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="XModalApi/XModalApi.csproj" Id="01773da7-887f-443d-8b87-75ba5919b959" />
+  <Project Path="XModalApiUsageExample/XModalApiUsageExample.csproj" />
+</Solution>
