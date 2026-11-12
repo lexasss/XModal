@@ -42,39 +42,41 @@ internal class Program
         Console.WriteLine(" in the 'Filter by category' field.");
         Console.WriteLine(" Type 'tuni' in the search box instead, and scroll to the bottom.\n");
 
-        var xo = new XModalOutput("TUNI Connect", "tuni_output", "1.0");
+        var xlo = new LiveOutput("TUNI Connect", "tuni_output", "1.0");
 
-        var paramToSend = xo.AddChannel("set");
-        Console.WriteLine($"  Created 'X-Modal Output - {xo.Label} - set' output node");
+        var paramToSend = xlo.AddChannel("set");
+        Console.WriteLine($"  Created 'X-Modal Output - {xlo.Label} - set' output node");
 
-        var paramToReceive = xo.AddChannel("get");
-        paramToReceive.ValueChanged += (s, e) => Console.WriteLine($"{xo.OscPrefix}/{paramToReceive.Label} = {e:F2}");
-        Console.WriteLine($"  Created 'X-Modal Output - {xo.Label} - get' output node");
+        var paramToReceive = xlo.AddChannel("get");
+        paramToReceive.ValueChanged += (s, e) => Console.WriteLine($"{xlo.OscPrefix}/{paramToReceive.Label} = {e:F2}");
+        Console.WriteLine($"  Created 'X-Modal Output - {xlo.Label} - get' output node");
 
         Console.WriteLine();
 
-        xo.OnReady += (s, e) => {
-            Console.WriteLine($"Connected: {xo.DeviceType}"); 
+        xlo.Ready += (s, e) => {
+            Console.WriteLine($"{xlo.Label} got ID = {xlo.DeviceId}. OSC prefix = {xlo.OscPrefix}");
         };
 
-        xo.OnDisconnect += (s, e) => {
-            Console.WriteLine("Disconnected"); 
+        xlo.Error += (s, e) =>
+        {
+            Console.WriteLine($"Error: {e}");
         };
 
-        xo.OnServerDisconnect += (s, e) => {
-            Console.WriteLine("Bridge disconnected");
+        xlo.Disconnected += (s, e) => {
+            Console.WriteLine("Disconnected" + (e == DisconnectionReason.StoppedFromServer ? " by server" : ""));
         };
 
-        await xo.ConnectAsync();
+        await xlo.ConnectAsync();
 
+        // Emulate data production
         _ = Task.Run(async () =>
         {
             double t = 0;
             var speed = 2.5;
-            while (xo.IsConnected)
+            while (xlo.IsConnected)
             {
                 var value = (Math.Sin(t * speed) + 1) / 2;
-                await xo.PublishAsync("set", value);
+                await xlo.PublishAsync("set", value);
 
                 t += 0.02 * speed;
 
@@ -85,7 +87,7 @@ internal class Program
         Console.WriteLine("Press any key to exit...");
         Console.ReadKey(intercept: true);
 
-        await xo.DisconnectAsync();
+        await xlo.DisconnectAsync();
     }
 
     static async Task TestXModalInput()
@@ -95,53 +97,55 @@ internal class Program
         Console.WriteLine(" in the 'Filter by category' field.");
         Console.WriteLine(" Type 'tuni' in the search box instead, and scroll to the bottom.\n");
 
-        var xi = new XModalInput("TUNI Input", "tuni_input", "1.0");
+        var xli = new LiveInput("TUNI Input", "tuni_input", "1.0");
 
-        XModalParameter[] channels = [
+        LiveParameter[] channels = [
             new("a", label: "Alpha", unit: "µV"),
             new("b", label: "Beta", unit: "µV")
         ];
 
         foreach (var channel in channels)
         {
-            xi.AddChannel(channel);
-            Console.WriteLine($"  Created 'X-Modal Connect - {xi.Label} - {channel.Label}' input node");
+            xli.AddChannel(channel);
+            Console.WriteLine($"  Created 'X-Modal Connect - {xli.Label} - {channel.Label}' input node");
         }
 
         Console.WriteLine();
 
-        xi.OnReady += (s, e) => {
-            Console.WriteLine($"Connected: {xi.DeviceType}");
+        xli.Ready += (s, e) => {
+            Console.WriteLine($"{xli.Label} got ID = {xli.DeviceId}. OSC prefix = {xli.OscPrefix}");
         };
 
-        xi.OnDisconnect += (s, e) => {
-            Console.WriteLine("Disconnected");
+        xli.Error += (s, e) =>
+        {
+            Console.WriteLine($"Error: {e}");
         };
 
-        xi.OnServerDisconnect += (s, e) => {
-            Console.WriteLine("Bridge disconnected");
+        xli.Disconnected += (s, e) => {
+            Console.WriteLine("Disconnected" + (e == DisconnectionReason.StoppedFromServer ? " by server" : ""));
         };
 
-        await xi.ConnectAsync();
+        await xli.ConnectAsync();
 
+        // Emulate data production
         _ = Task.Run(async () =>
         {
-            while (xi.IsConnected)
+            while (xli.IsConnected)
             {
                 double a = 50 + 10 * Math.Sin(DateTime.Now.Ticks / 1e7);
                 double b = 30 + 5 * Math.Cos(DateTime.Now.Ticks / 1e7);
                 
-                await xi.PublishAsync("a", a / 100);
-                await xi.PublishAsync("b", b / 100);
+                await xli.PublishAsync("a", a / 100);
+                await xli.PublishAsync("b", b / 100);
 
-                Thread.Sleep(100);
+                await Task.Delay(100);
             }
         });
 
         Console.WriteLine("Press any key to exit...");
         Console.ReadKey(intercept: true);
 
-        await xi.DisconnectAsync();
+        await xli.DisconnectAsync();
     }
 
     static async Task TestXModalClient()
@@ -156,7 +160,7 @@ internal class Program
 
         var lm = new LeapMotion();
 
-        var client = new XModalClient("TUNI Client", "tuni", "1.0");
+        var xsc = new StaticClient("TUNI Client", "tuni", "1.0");
 
         /*
         // receives data directly from TestSignal/sine input
@@ -176,35 +180,47 @@ internal class Program
         }, XModalClient.SubscriberType.Input);
         */
 
-        Console.WriteLine($" Create a 'TUNI - Monitor - slot1' ({client.DeviceType}/monitor/slot1) output node");
+        Console.WriteLine($" Create a 'TUNI - Monitor - slot1' ({xsc.DeviceType}/monitor/slot1) output node");
         Console.WriteLine(" in the XModal designer and wire it to some input node.\n");
 
-        client.Subscribe(client.DeviceType, "monitor", "slot1", values =>
+        xsc.Subscribe(xsc.DeviceType, "monitor", "slot1", values =>
         {
-            Console.WriteLine($"output/{client.DeviceType}/monitor/slot1 = {values[0]}");
+            Console.WriteLine($"output/{xsc.DeviceType}/monitor/slot1 = {values[0]}");
         });
 
-        client.Connected += (s, e) =>
+        xsc.Ready += (s, e) =>
         {
-            Console.WriteLine($"Assigned as instance `{e}`\n");
+            Console.WriteLine($"{xsc.Label} got ID = {xsc.DeviceId}.");
 
-            Console.WriteLine($" Activated 'TUNI - Sine' ({client.DeviceType}/periodic/sine) input node.");
-            client.AttachSource(new SineSource("periodic"));
+            Console.WriteLine($" Activated 'TUNI - Sine' ({xsc.DeviceType}/periodic/sine) input node.");
+            xsc.AttachSource(new SineSource("periodic"));
 
             foreach (var lmChannel in lm.Channels)
             {
-                Console.WriteLine($" Activated 'TUNI - {ToHungarianStyle(lmChannel.Channel)}' ({client.DeviceType}/{lmChannel.Type}/{lmChannel.Channel}) input node.");
-                client.AttachSource(lmChannel);
+                Console.WriteLine($" Activated 'TUNI - {ToHungarianStyle(lmChannel.Channel)}' ({xsc.DeviceType}/{lmChannel.Type}/{lmChannel.Channel}) input node.");
+                xsc.AttachSource(lmChannel);
             }
             Console.WriteLine();
 
             lm.Run();
         };
 
+        xsc.Error += (s, e) =>
+        {
+            Console.WriteLine($"Error: {e}");
+        };
+
+        xsc.Disconnected += (s, e) =>
+        {
+            Console.WriteLine("Disconnected" + (e == DisconnectionReason.StoppedFromServer ? " by server" : ""));
+        };
+
+        await xsc.ConnectAsync();
+
         Console.WriteLine("Press any key to exit...");
         Console.ReadKey(intercept: true);
 
-        client.Dispose();
+        await xsc.DisconnectAsync();
     }
 
     static string ToHungarianStyle(string text)

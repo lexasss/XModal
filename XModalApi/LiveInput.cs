@@ -2,12 +2,12 @@
 
 namespace XModalApi;
 
-public class XModalInput(
+public class LiveInput(
     string label,
     string deviceType,
     string version,
     string bridgeIp = "127.0.0.1")
-    : XModalLive(label, deviceType, version, bridgeIp)
+    : Live(label, deviceType, version, bridgeIp)
 {
     // Publish channel value
     public async Task PublishAsync(string name, double value)

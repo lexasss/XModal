@@ -1,6 +1,6 @@
 ﻿namespace XModalApi;
 
-public class XModalParameter(
+public class LiveParameter(
     string name,
     string? label = null,
     double displayMin = 0,
